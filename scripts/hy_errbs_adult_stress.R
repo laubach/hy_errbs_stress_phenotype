@@ -2,7 +2,8 @@
 ##############        Spotted Hyena eRRBS DNA Methylation:       ##############
 ##############               Adult stress phenotype              ##############
 ##############                 By: Zach Laubach                  ##############
-##############             last updated: 20 Nov 2018             ##############
+##############               created: 20 Nov 2018                ##############
+##############             last updated: 8 Feb 2019              ##############
 ###############################################################################
 
 
@@ -103,16 +104,16 @@
     ## b) The path to prey data
       general_data_path <- paste("~/R/R_wd/fisi/project/0_data/",
                               sep = '')
+    
+    ## c) Source scripts path
+      source_path <- paste("~/Git/source_code/")
       
   
   ### 1.6 Source functions
-    ## a) Source scripts path
-      source_path <- paste("~/Git/source_code/")
-    
-    ## b) all_char_to_lower function
+    ## a) all_char_to_lower function
       source(file = paste0(source_path, "all_char_to_lower.R"))
       
-    ## c) format_var_names function
+    ## b) format_var_names function
       source(file = paste0(source_path, "format_var_names.R"))
       
     ## c) format_var_names_dash function
@@ -172,15 +173,17 @@
                                         format = "%m/%d/%y")
       
     ## e) Create an estimated age in months by subtracting birthdate from
-      # grad.date and weandate using lubridate
+      # darting date using lubridate and dividing by average # days in month 
       rrbs_vars <- rrbs_vars %>%
-        mutate(age.mon = round((interval(cub.dob, 
+        mutate(dart.age.mon = round((interval(cub.dob, 
                                         darting.date) %/% days(1) / 30.44), 1))
    
     ## f) drop unecessary variables
       rrbs_vars <- rrbs_vars %>%
         select (- c(orig.box, orig.cell, sample.type, check.out.state,
-                    check.out.vol.u.l., dna.conc.ng.u.l., initial.library.prep)) 
+                    check.out.vol.u.l., dna.conc.ng.u.l., initial.library.prep,
+                    mat.care.sessions, cub.sex, age.at.darting, grooming..blup,
+                    blup.tertile)) 
       
     ## g) convert hy.id to character class 
       rrbs_vars$hy.id <- as.character(rrbs_vars$hy.id)
@@ -354,7 +357,7 @@
         poop.date <-(fecal_data$poop.date[i])
       
         # create a dataframe to store the rows from repro_states where the
-        # id mathes hy.id, and poop.date is in between cycle start and stop 
+        # id matches hy.id, and poop.date is in between cycle start and stop 
         overlap_poop_repro <- filter(repro_state, id == hy.id & 
                                        poop.date >= cycle.start & 
                                        poop.date <= cycle.stop)
@@ -460,27 +463,46 @@
       
       
   ### 4.4 Residual from multiple variable linear regression
+    
+    # NOTE: Residual method with repeated measures per ID generally runs 
+      # risk of bias, especially when not all IDs measured same # times
+      
+    # NOTE: In general, multiple variable regression provides similar but 
+      # unbiased estimates as residual regression...avoid the latter
+    
     ## a) Calucate the unadjusted individual level variation in fecal cort...
-      # same as takinge average
-      fec.cort.lm <- lm(corticosterone.ng.g.log ~ hy.id, data = fecal_data)
-      summary(fec.cort.lm)
-      residuals(fec.cort.lm)
-      coef(fec.cort.lm)
+      # like takinge individual cort average
+#      fec.cort.lm <- lm(corticosterone.ng.g.log ~ hy.id, data = fecal_data)
+#      summary(fec.cort.lm)
+#      coef(fec.cort.lm)
       
     ## b) Calucate the adjusted individual level variation in fecal cort...
+      # NOTE: Would first want to average individual ID so on one measure
+        # per ID...then residuals for adjusted model would represent variation
+        # in cort not do to fecal.age.days. repro state etc.
       # NOTE: Don't adjust for 'parity' or 'trimester' because too few 
-      # animals have these data
-      fec.cort.lm.adj <- lm(corticosterone.ng.g.log ~ hy.id + fecal.age.days +
-                              state + poop.am.pm + migratn.seas, 
-                            data = fecal_data)
+        # animals have these data
+#      fec.cort.lm.adj <- lm(corticosterone.ng.g.log ~ hy.id + fecal.age.days +
+#                              state + poop.am.pm + migratn.seas, 
+#                            data = fecal_data)
       
-      summary(fec.cort.lm.adj)
-      
+#      summary(fec.cort.lm.adj)
+#       coef(fec.cort.lm.adj)
+#      residuals(fec.cort.lm.adj)
  
-  ### 4.5 BLUPs from mixed model linear regression
+      
+      
+  ### 4.4 BLUPs from mixed model linear regression
+    
+    # NOTE: Use when there are repeated measuresments for a variable
+       # that is to be used as an explanatory variable in another analysis.
+       # Can control for other variables that bias estimates of explanatory
+       # variable
+          
     # NOTE: these are conditional means from linear model with a
-    # Gaussian distribution (according to Doug Bates)
-    # BLUP = fixef(intrcpt) + ranef 
+      # Gaussian distribution (according to Doug Bates)
+      # BLUP = fixef(intrcpt) + ranef 
+       
     ## a) Calucate the BLUP variation in fecal cort.    
       fec.cort.lmm <- lme4::lmer(corticosterone.ng.g.log ~ fecal.age.days + 
                                    state + poop.am.pm + migratn.seas + 
