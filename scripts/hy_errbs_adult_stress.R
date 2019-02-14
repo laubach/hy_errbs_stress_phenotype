@@ -15,6 +15,8 @@
     # 1: Configure workspace
     # 2: Import data
     # 3: Data management
+    # 4: Model fecal corticosterone 
+    # 5: Export data files
 
 
 
@@ -318,7 +320,8 @@
       # collected prior to darting.data
       fecal_data <- fecal_data  %>%
         filter(fecal.age.days >= 365)
-    #***NOTE*** This is a data inclusion cut-off decision
+    #*** NOTE *** This is a data inclusion cut-off decision. 
+          # ALL FECAL CORT. when HYENAS >1yr
 
 
   ### 3.6 Tidy repro_state       
@@ -391,10 +394,21 @@
     ## a) Change state to character
       fecal_data$state <- as.character(fecal_data$state)
       
-    ## b) Replaces na with age
-      fecal_data$state <- ifelse((is.na(fecal_data$state) & 
-                                    fecal_data$fecal.age.days < 700),
-                                 'n', fecal_data$state)
+    ## b) Replaces NA with repro state
+      # *** NOTE *** Hyena's less than ~750 days old are not in tblReprostates,  
+          # but are by default n = nulliparous. Animals older than ~750 days
+          # sometimes have missing data on repro state, possibly because
+          # cub goes missing - HERE WE MADE DECISION to classify these
+          # animals' rerpro state as o = other
+      fecal_data <- fecal_data  %>%
+        mutate(state = case_when(!is.na(fecal_data$state)
+                                 ~ state,
+                                 is.na(fecal_data$state) &
+                                   fecal.age.days < 750
+                                 ~ c("n"),
+                                 is.na(fecal_data$state) &
+                                   fecal.age.days > 750
+                                 ~ c("o")))
       
     ## c) Re-code *nominal* factor (with ordered levels)  
       # Set levels (odering) of state variable and sets the reference level 
@@ -424,7 +438,7 @@
         labs(title= "Histogram for fecal corticosterone") +
         theme(plot.title = element_text(hjust = 0.5)) + # center title
         labs(x="Corticosterone (ng/g)", y="Frequency") 
-   
+   class(adult_fec_cort$cort)
     ## b) Natural log transformation
       fecal_data$corticosterone.ng.g.log <- log(fecal_data$corticosterone.ng.g)
       
@@ -460,37 +474,7 @@
                                                   na.rm = T), 2),
                   sd.log.fec.corticost = round(sd(corticosterone.ng.g.log, 
                                               na.rm = T), 2))
-      
-      
-  ### 4.4 Residual from multiple variable linear regression
-    
-    # NOTE: Residual method with repeated measures per ID generally runs 
-      # risk of bias, especially when not all IDs measured same # times
-      
-    # NOTE: In general, multiple variable regression provides similar but 
-      # unbiased estimates as residual regression...avoid the latter
-    
-    ## a) Calucate the unadjusted individual level variation in fecal cort...
-      # like takinge individual cort average
-#      fec.cort.lm <- lm(corticosterone.ng.g.log ~ hy.id, data = fecal_data)
-#      summary(fec.cort.lm)
-#      coef(fec.cort.lm)
-      
-    ## b) Calucate the adjusted individual level variation in fecal cort...
-      # NOTE: Would first want to average individual ID so on one measure
-        # per ID...then residuals for adjusted model would represent variation
-        # in cort not do to fecal.age.days. repro state etc.
-      # NOTE: Don't adjust for 'parity' or 'trimester' because too few 
-        # animals have these data
-#      fec.cort.lm.adj <- lm(corticosterone.ng.g.log ~ hy.id + fecal.age.days +
-#                              state + poop.am.pm + migratn.seas, 
-#                            data = fecal_data)
-      
-#      summary(fec.cort.lm.adj)
-#       coef(fec.cort.lm.adj)
-#      residuals(fec.cort.lm.adj)
- 
-      
+  
       
   ### 4.4 BLUPs from mixed model linear regression
     
@@ -499,80 +483,71 @@
        # Can control for other variables that bias estimates of explanatory
        # variable
           
-    # NOTE: these are conditional means from linear model with a
+    # NOTE: BLUPs are conditional means from linear model with a
       # Gaussian distribution (according to Doug Bates)
       # BLUP = fixef(intrcpt) + ranef 
        
-    ## a) Calucate the BLUP variation in fecal cort.    
+    ## a) Calucate the BLUPs, individual variation in fecal adult cort.    
       fec.cort.lmm <- lme4::lmer(corticosterone.ng.g.log ~ fecal.age.days + 
                                    state + poop.am.pm + migratn.seas + 
                                    (1|hy.id ), data = fecal_data)
       
+    ## b) Generate mixed model summary 
       summary(fec.cort.lmm)
-      blups <- as.data.frame(ranef(fec.cort.lmm))
-      coef(fec.cort.lmm)
-      fixef(fec.cort.lmm)
-    ## b) Extract the BLUPs from mixed model
-      blups <- as.data.frame(coef(fec.cort.lmm))  
-      blups <- tidy(fec.cort.lmm)
- 
+      ranef(fec.cort.lmm) # random effect
+      fixef(fec.cort.lmm) # fixed effect
       
-    ### Next need to exponentiate these (from lm and lmmm) back to raw scale
+    ## c) extract BLUPs from mixed model object
+      blups <- coef(fec.cort.lmm)[[1]] # extract BLUPs as a dataframe
+                                       # BLUPs = rand ef. + fix ef. (intercept)
       
+    ## d) Use tibble to add row names as their own column
+      blups <- rownames_to_column(blups, "id") 
       
-    
+    ## e) Rename variables in blups table
+      blups <- rename(blups, 'log_cort' = '(Intercept)') 
       
-    ### NOTE Broom package augment to see residuals and tidy to see parameter
-      # estimates
-    ## c) make a tidy table of glm model parameter estimates using broom pckg
-      # terms, including intercept can be dropped from tidy table for graphing
-      # purposes, and estimates can be re-labeled
-      sig_pred_mut_adg <- tidy(cub.mutual.adj) %>%
-        filter(term != "(Intercept)" &
-                 term != "prim.prey.gest" &
-                 term != "sexm" &
-                 term != "age.mon") %>%
-        relabel_predictors(c(mom.strank.quartQ2 = "Q2 (maternal rank)",                       
-                             mom.strank.quartQ3 = "Q3 (maternal rank)", 
-                             mom.strank.quartQ4 = "Q4 (maternal rank)", 
-                             hum.presmed = "Medium (anthro. distubance)", 
-                             hum.preshi = "High (anthro. distubance)", 
-                             prim.prey.peri.concpt = "Periconception Prey",
-                             prim.prey.birth.3 = "Birth to 3 month Prey")  
+    ## f) Create a new dataframe that includes hyean id, the log cort BLUPs,
+      # and the exponeniated (biological scale) cort BLUPs
+      adult_fec_cort <- as.tibble(cbind(id = blups$id,
+                              log.cort = blups$log_cort, 
+                              cort = exp(blups$log_cort)), round = 4)
       
+    ## g) Coerce from character to numeric class
+      adult_fec_cort$log.cort <- as.numeric(adult_fec_cort$log.cort)
+      adult_fec_cort$cort <- as.numeric(adult_fec_cort$cort)
+   
       
+  ### 4.5 Graph adult fecal cort conditional averages (BLUPs)
+      ## a) Histogram Outcome (fecal corticosterone BLUPs)  
+      ggplot(data=adult_fec_cort, aes(x=cort)) + 
+        geom_histogram(aes(y = ..count..),
+                       breaks=seq(20, 100, by = 7), 
+                       col="black",
+                       fill = "dark grey") +
+        xlim(c(20, 100)) +
+        labs(title= "Histogram of adult fecal corticosterone BLUPs") +
+        theme(plot.title = element_text(hjust = 0.5)) + # center title
+        labs(x="Corticosterone BLUPs (ng/g)", y="Frequency") 
       
-      
-      
-      
-      
-      
-      
-      
-      
-  ### 5.1 Join
-    ## b) Join summary of fecal corticosterone to the rrbs_vars data
-      rrbs_vars <- left_join(rrbs_vars, fecal_data_avg, by = 'hy.id')
-     
-
-### NOTES ### 
-      
-  ## think about adding plasma hormone data
-      
-  ## think about incorporating agressions behaviors...not enough data on
-    # boldness or neophobia to include these... PCA would need complete data
-    # or would need to impute / nearest neighbor to fill in missing data
-      
-  ## possibly consider doing latent class analysis
+      ## b) Histogram Outcome (log fecal corticosterone)  
+      ggplot(data=adult_fec_cort, aes(x=log.cort)) + 
+        geom_histogram(aes(y = ..count..),
+                       breaks=seq(2.5, 5, by = 0.15), 
+                       col="black",
+                       fill = "dark grey") +
+        xlim(c(2.5, 5)) +
+        labs(title= "Histogram of log adult fecal corticosterone BLUPs") +
+        theme(plot.title = element_text(hjust = 0.5)) + # center title
+        labs(x="Log Corticosterone BLUPs (ng/g)", y="Frequency") 
       
 
       
-      
 ###############################################################################
-##############                10. Export data files               ##############
+##############                5. Export data files               ##############
 ###############################################################################
       
-  ### 10.1 Export rrbs_vars data to csv     
+  ### 10.1 Export fecal corticosterone BLUPs to csv     
       # Save and export tables as a .cvs spreadsheet and named with today's
       # date. Files are saved in the 'output' folder in the working directory.
       
@@ -580,12 +555,13 @@
       # For each table that will be saved as a .csv file, first generate a 
       # file name to save each table
       # here, we paste the folder path, followed by the file name 
-      csv.file.name.rrbs.vars <- paste0(here("output", "rrbs_vars.csv")) 
+      csv.file.name.fecal.cort.BLUPs <- paste0(here("output", 
+                                                    "fecal_cort_BLUPs.csv")) 
       
     ## b) Save Tables 
       # Save data frame as a .csv file (a spreadsheet/table) into the 
       # output data folder in the working directory.
-      write.csv (rrbs_vars, file = csv.file.name.rrbs.vars)
+      write.csv (adult_fec_cort, file = csv.file.name.fecal.cort.BLUPs)
       
       
       
