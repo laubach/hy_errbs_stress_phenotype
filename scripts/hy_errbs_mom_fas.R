@@ -3,7 +3,7 @@
 ##############             Maternal care (FAS data)              ##############
 ##############                 By: Zach Laubach                  ##############
 ##############               created: 14 Feb 2018                ##############
-##############             last updated: 14 Feb 2019            ##############
+##############             last updated: 27 Feb 2019             ##############
 ###############################################################################
 
 
@@ -15,6 +15,12 @@
     # 1: Configure workspace
     # 2: Import data
     # 3: Data management
+    # 4: Univariate analyses
+    # 5: Model 'close proximity' behaviors
+    # 6: Model 'nursing' behaviors
+    # 7: Model 'grooming' behaviors
+    # 8: Format variables for MACUA 
+    # 9: Export data files 
 
 
 
@@ -73,28 +79,37 @@
       # load broom packages
         library ('broom')
         
-      # Check for lme4 and install if not already installed
-        if (!'lme4' %in% installed.packages()[,1]){
-          install.packages ('lme4')
+      # Check for glmmTMB and install if not already installed
+        # for zero inlfated mixed models
+        if (!'glmmTMB' %in% installed.packages()[,1]){
+          install.packages ('glmmTMB')
         }
-      # load lme4 packages
-        library ('lme4')
+      # load glmmTMB packages
+        library ('glmmTMB')
         
+      # Check for bbmle and install if not already installed
+        # for AICtab
+        if (!'bbmle' %in% installed.packages()[,1]){
+          install.packages ('bbmle')
+        }
+      # load bbmle packages
+        library ('bbmle')
 
+        
   ### 1.3 Get Version and Session Info
     R.Version()
     sessionInfo()
     
     # Developed in:   
-    # R version 3.5.1 (2018-07-02)
+    # R version 3.5.2 (2018-12-20)
     # Platform: x86_64-apple-darwin15.6.0 (64-bit)
-    # Running under: macOS  10.14
+    # Running under: macOS  Mojave 10.14.3
     
   
   ### 1.4 Set working directory 
     setwd(here())
-  
-  
+
+    
   ### 1.5 Set file paths for data importing and exporting
     ## a) The path to errbs data
       rrbs_vars_data_path <- paste("~/R/R_wd/fisi/project/6_hy_RRBS/",
@@ -424,182 +439,634 @@
                          "fas.date" = "fas.date")) 
       
       
-  ### 3.8 Re-tidy fecal data
+  ### 3.9 Re-tidy FAS data
     ## a) Change state to character
-      fecal_data$state <- as.character(fecal_data$state)
+      fas_data$state <- as.character(fas_data$state)
       
-    ## b) Replaces NA with repro state
-      # *** NOTE *** Hyena's less than ~750 days old are not in tblReprostates,  
-          # but are by default n = nulliparous. Animals older than ~750 days
-          # sometimes have missing data on repro state, possibly because
-          # cub goes missing - HERE WE MADE DECISION to classify these
-          # animals' rerpro state as o = other
-      fecal_data <- fecal_data  %>%
-        mutate(state = case_when(!is.na(fecal_data$state)
-                                 ~ state,
-                                 is.na(fecal_data$state) &
-                                   fecal.age.days < 750
-                                 ~ c("n"),
-                                 is.na(fecal_data$state) &
-                                   fecal.age.days > 750
-                                 ~ c("o")))
+    ## b) Subset data to only include moms and cubs when lactating
+      fas_data <- fas_data  %>%
+        filter(state == "l")
+      
+    #*** NOTE *** This is a data inclusion cut-off decision. 
+      # ALL FAS in which mom's are lactating 
       
     ## c) Re-code *nominal* factor (with ordered levels)  
-      # Set levels (odering) of state variable and sets the reference level 
-      # to 'n' makes this
-      fecal_data <- transform( fecal_data, 
-                             state = factor(state,
-                                              levels = c("n", "p", "l", "o")))
+      fas_data <- transform(fas_data, 
+                             state = factor(state))
+  
+    ## d) Re-code parity as a two level variable
+      # primiparous = prim v.s. multiparous = mult
+      fas_data <- fas_data  %>%
+        mutate(parity.binary = ifelse (fas_data$parity == 'a', 'prim', 'mult'))
+       
+    ## e) Re-code *nominal* factor (with ordered levels)  
+      # Set levels (odering) of parity variable and sets the reference level 
+      # to 'a'
+      fas_data <- transform(fas_data, 
+                             parity.binary = factor(parity.binary,
+                                              levels = c("prim", "mult")))
+    # *** NOTE *** levels may vary by data set
       
       
 
 ###############################################################################
-##############           4. Model fecal corticosterone           ##############
+##############              4. Univariate analyses               ##############
 ###############################################################################      
       
   ### 4.1 Overview
-    # Generate summary / estimates for repeated measures fecal corticosterone 
-    # to be used as independent variable in models.
-  
+    # Generate summary / descriptive stats for variables in the data frame
+      summary(fas_data)
+      
+      
   ### 4.2 Visualize (and transform as needed) raw data        
-      ## a) Histogram Outcome (fecal corticosterone)
-      ggplot(data=fecal_data, aes(x=corticosterone.ng.g)) + 
+      ## a) Histogram Outcome (nos minutes in close proximity)
+      ggplot(data=fas_data, aes(x=c)) + 
         geom_histogram(aes(y = ..count..),
-                       breaks=seq(0, 750, by = 10), 
+                       breaks=seq(0, 35, by = 2.5), 
                        col="black",
                        fill = "dark grey") +
-        xlim(c(0,750)) +
-        labs(title= "Histogram for fecal corticosterone") +
+        xlim(c(0, 35)) +
+        labs(title= "Histogram for mother and cub close proximity") +
         theme(plot.title = element_text(hjust = 0.5)) + # center title
-        labs(x="Corticosterone (ng/g)", y="Frequency") 
-   class(adult_fec_cort$cort)
-    ## b) Natural log transformation
-      fecal_data$corticosterone.ng.g.log <- log(fecal_data$corticosterone.ng.g)
+        labs(x="Close proximity (num. mins.)", y="Frequency") 
       
-    ## c) Histogram Outcome (log fecal corticosterone)  
-      ggplot(data=fecal_data, aes(x=corticosterone.ng.g.log)) + 
+      ## b) Histogram Outcome (ratio in close proximity : overlap time together)
+      ggplot(data=fas_data, aes(x=(c/overlap))) + 
         geom_histogram(aes(y = ..count..),
-                       breaks=seq(-0.5, 7, by = 0.05), 
+                       breaks=seq(0, 1, by = 0.01), 
                        col="black",
                        fill = "dark grey") +
-        xlim(c(-0.5,7)) +
-        labs(title= "Histogram for log fecal corticosterone") +
+        xlim(c(0, 1)) +
+        labs(title= "Histogram for mother and cub close proximity
+             vs overlap time together") +
         theme(plot.title = element_text(hjust = 0.5)) + # center title
-        labs(x="Log Corticosterone (ng/g)", y="Frequency") 
-      
-      
-  ### 4.3 Mean summary
-    ## a) Calucate the average corticosterone measure for each hyena 
-      # Start from one year of age and including all additonal fecal samples.
-      fecal_data_avg <- fecal_data  %>%
-        group_by(hy.id) %>%
-        summarize(n.fec.corticost = sum(!is.na(corticosterone.ng.g)),
-                  mean.fec.corticost = round(mean(corticosterone.ng.g, 
-                                            na.rm = T), 2),
-                  sd.fec.corticost = round(sd(corticosterone.ng.g, 
-                                              na.rm = T), 2))
-
-    ## b) Calucate the average of log corticosterone measure for each hyena 
-      # Start from one year of age and including all additonal fecal samples.
-      log_fecal_data_avg <- fecal_data  %>%
-        group_by(hy.id) %>%
-        summarize(n.log.fec.corticost = sum(!is.na(corticosterone.ng.g.log)),
-                  mean.log.fec.corticost = round(mean(corticosterone.ng.g.log, 
-                                                  na.rm = T), 2),
-                  sd.log.fec.corticost = round(sd(corticosterone.ng.g.log, 
-                                              na.rm = T), 2))
+        labs(x="Ratio (close proximity : overlap", y="Frequency") 
   
+  ### 4.3 Visualize (and transform as needed) raw data        
+    ## a) Histogram Outcome (num minutes spent nursing)
+      ggplot(data=fas_data, aes(x=n)) + 
+        geom_histogram(aes(y = ..count..),
+                       breaks=seq(0, 40, by = 2.5), 
+                       col="black",
+                       fill = "dark grey") +
+        xlim(c(0, 40)) +
+        labs(title= "Histogram for amount of minutes spent nursing") +
+        theme(plot.title = element_text(hjust = 0.5)) + # center title
+        labs(x="Nursing (num. mins.)", y="Frequency") 
       
-  ### 4.4 BLUPs from mixed model linear regression
+    ## b) Histogram Outcome (ratio nursing : overlap time together)
+      ggplot(data=fas_data, aes(x=(n/overlap))) + 
+        geom_histogram(aes(y = ..count..),
+                       breaks=seq(0, 1, by = 0.01), 
+                       col="black",
+                       fill = "dark grey") +
+        xlim(c(0, 1)) +
+        labs(title= "Histogram for time spent nursing
+             vs overlap time together") +
+        theme(plot.title = element_text(hjust = 0.5)) + # center title
+        labs(x="Ratio (nursing : overlap", y="Frequency") 
+      
+      
+    ### 4.4 Visualize (and transform as needed) raw data        
+      ## a) Histogram Outcome (num minutes spent grooming)
+      ggplot(data=fas_data, aes(x=g)) + 
+        geom_histogram(aes(y = ..count..),
+                       breaks=seq(0, 15, by = 1), 
+                       col="black",
+                       fill = "dark grey") +
+        xlim(c(0, 15)) +
+        labs(title= "Histogram for amount minutes spent grooming") +
+        theme(plot.title = element_text(hjust = 0.5)) + # center title
+        labs(x="Grooming (num. mins.)", y="Frequency")   
     
+      
+    ## b) Histogram Outcome (ratio grooming : overlap time together)
+      ggplot(data=fas_data, aes(x=(g/overlap))) + 
+        geom_histogram(aes(y = ..count..),
+                       breaks=seq(0, 1, by = 0.01), 
+                       col="black",
+                       fill = "dark grey") +
+        xlim(c(0, 1)) +
+        labs(title= "Histogram for time spent grooming
+             vs overlap time together") +
+        theme(plot.title = element_text(hjust = 0.5)) + # center title
+        labs(x="Ratio (grooming : overlap", y="Frequency") 
+      
+      
+      
+###############################################################################
+##############       5. Model 'close proximity' behaviors        ##############
+###############################################################################  
+      
+  ### 5.1 Close proximity model parameterization 
+    ## a) Close proximity zero inflated, poisson distributed response
+      close.zipoisson <- glmmTMB(c ~ fas.age.mon + migratn.seas + fas.am.pm +
+                                   offset(log(overlap)) + (1|hy.id),
+                                 data = fas_data,
+                                 ziformula = ~1,
+                                 family = list(family = 'poisson', 
+                                               link = 'log'))
+      # Model summary estimates
+      summary(close.zipoisson)
+    
+    ## b) Close proximity zero inflated, negative bionomial (NB2) 
+      # distributed response
+      close.zinegbinom2 <- update(close.zipoisson, 
+                                 family = list(family = 'nbinom2',
+                                               link = 'log'))
+      
+      # Model summary estimates
+      summary(close.zinegbinom2)
+      
+    ## c) Close proximity zero inflated, negative bionomial (NB1) 
+      # distributed response
+      close.zinegbinom1 <- update(close.zipoisson, 
+                                 family = list(family = 'nbinom1',
+                                               link = 'log'))
+      
+      # Model summary estimates
+      summary(close.zinegbinom1)
+      
+    ## d) Close proximity poisson distributed response; NO zero inflation
+      close.poisson <- glmmTMB(c ~ fas.age.mon + migratn.seas + fas.am.pm +
+                                   offset(log(overlap)) + (1|hy.id),
+                                 data = fas_data,
+                                 ziformula = ~0,
+                                 family = list(family = 'poisson', 
+                                               link = 'log'))
+      # Model summary estimates
+      summary(close.poisson)
+      
+    ## e) Close proximity, negative bionomial (NB2); NO zero inflation 
+      # distributed response
+      close.negbinom2 <- update(close.poisson, 
+                                  family = list(family = 'nbinom2',
+                                                link = 'log'))
+      
+      # Model summary estimates
+      summary(close.negbinom2)
+      
+    ## f) Close proximity negative bionomial (NB1); NO zero inflation 
+      # distributed response
+      close.negbinom1 <- update(close.poisson, 
+                                family = list(family = 'nbinom1',
+                                              link = 'log'))
+      
+      # Model summary estimates
+      summary(close.negbinom1)
+      
+      
+  ### 5.2 Close proximity model fit comparisons
+    ## e) Compare model fit with AICtab (from bbmle)
+      AICtab(close.zipoisson, close.zinegbinom2, close.zinegbinom1, 
+             close.poisson, close.negbinom2, close.negbinom1)
+    
+      
+  ### 5.3 Close proximity BLUP extractions
+
     # NOTE: Use when there are repeated measuresments for a variable
        # that is to be used as an explanatory variable in another analysis.
        # Can control for other variables that bias estimates of explanatory
        # variable
           
-    # NOTE: BLUPs are conditional means from linear model with a
-      # Gaussian distribution (according to Doug Bates)
+    # NOTE: BLUPs are conditional modes from a generalized linear model
+      # (according to Doug Bates). Here we use the glmmTMB package 
+      # to fit a zero-inflated, poisson/negative bionomial model
       # BLUP = fixef(intrcpt) + ranef 
        
-    ## a) Calucate the BLUPs, individual variation in fecal adult cort.    
-      fec.cort.lmm <- lme4::lmer(corticosterone.ng.g.log ~ fecal.age.days + 
-                                   state + poop.am.pm + migratn.seas + 
-                                   (1|hy.id ), data = fecal_data)
+      # Calucate the BLUPs, individual variation in close proximity between a
+      # mom and cub from the best fitting model (above)
       
-    ## b) Generate mixed model summary 
-      summary(fec.cort.lmm)
-      ranef(fec.cort.lmm) # random effect
-      fixef(fec.cort.lmm) # fixed effect
+    ## a) Generate best fit model summary 
+      ranef(close.zinegbinom1) # random effect
+      fixef(close.zinegbinom1) # fixed effect
+      coef(close.zinegbinom1) # fixed effect
       
-    ## c) extract BLUPs from mixed model object
-      blups <- coef(fec.cort.lmm)[[1]] # extract BLUPs as a dataframe
-                                       # BLUPs = rand ef. + fix ef. (intercept)
+    ## b) extract BLUPs from mixed model object
+      close.blups <- as.data.frame(ranef(close.zinegbinom1)) # extract ranef as 
+      # a dataframe, BLUPs = rand effects + intercept (from poiss/neg. binom)
       
-    ## d) Use tibble to add row names as their own column
-      blups <- rownames_to_column(blups, "id") 
+    ## c) Rename variables in blups table
+      close.blups <- close.blups %>%
+        rename('hy.id' = 'grp') %>%
+        rename('c.ranef' = 'condval') %>%
+        rename('c.ranef.sd' = 'condsd') %>%
+        select(c('hy.id', 'c.ranef', 'c.ranef.sd'))
       
-    ## e) Rename variables in blups table
-      blups <- rename(blups, 'log_cort' = '(Intercept)') 
+    ## d) extract fixed effect (intercept) from poisson/neg. binomial model
+      close.intrcpt <- (fixef(close.zinegbinom1)[[1]])[[1]] # fixed effect
+    #**** INTERPETATION ****#  
+      # Interpet as expected log count of behavior when controlling for /
+      # holding constant the effects ofcovariates (or if exponentiated 
+      # the intercept is the incident rate of the expected count 
+      # of behavior) as a proporiton of time overlap (the offset)
       
-    ## f) Create a new dataframe that includes hyean id, the log cort BLUPs,
-      # and the exponeniated (biological scale) cort BLUPs
-      adult_fec_cort <- as.tibble(cbind(id = blups$id,
-                              log.cort = blups$log_cort, 
-                              cort = exp(blups$log_cort)), round = 4)
+    ## e) extract fixed effect (intercept) from zero inflation model
+      zi.close.intrcpt <- (fixef(close.zinegbinom1)[[2]])[[1]] # fixed effect
       
-    ## g) Coerce from character to numeric class
-      adult_fec_cort$log.cort <- as.numeric(adult_fec_cort$log.cort)
-      adult_fec_cort$cort <- as.numeric(adult_fec_cort$cort)
-   
+    ## f) Create a new variable that is ranef plus both poisson/neg. binomial
+      # and zero inflation model intercepts. This provides estimates of 
+      # individual level variation in proportion of time spent doing a behavior
+      # vs time mom and cub overlapped (present together)
+      close.blups <-  close.blups  %>%
+        mutate(c.blups = close.intrcpt + c.ranef) %>%
+        mutate(c.expontd.blups = exp(c.blups))
       
-  ### 4.5 Graph adult fecal cort conditional averages (BLUPs)
-      ## a) Histogram Outcome (fecal corticosterone BLUPs)  
-      ggplot(data=adult_fec_cort, aes(x=cort)) + 
-        geom_histogram(aes(y = ..count..),
-                       breaks=seq(20, 100, by = 7), 
-                       col="black",
-                       fill = "dark grey") +
-        xlim(c(20, 100)) +
-        labs(title= "Histogram of adult fecal corticosterone BLUPs") +
-        theme(plot.title = element_text(hjust = 0.5)) + # center title
-        labs(x="Corticosterone BLUPs (ng/g)", y="Frequency") 
+    #**** INTERPETATION ****#  
+      # Interpet as the conditional mode or the log counts / incident rate
+      # of expected counts as a proportion of the overlap time (offset) for
+      # each individual...while holding constant effect of other covariates
       
-      ## b) Histogram Outcome (log fecal corticosterone)  
-      ggplot(data=adult_fec_cort, aes(x=log.cort)) + 
-        geom_histogram(aes(y = ..count..),
-                       breaks=seq(2.5, 5, by = 0.15), 
-                       col="black",
-                       fill = "dark grey") +
-        xlim(c(2.5, 5)) +
-        labs(title= "Histogram of log adult fecal corticosterone BLUPs") +
-        theme(plot.title = element_text(hjust = 0.5)) + # center title
-        labs(x="Log Corticosterone BLUPs (ng/g)", y="Frequency") 
       
+      
+###############################################################################
+##############            6. Model 'nursing' behaviors           ##############
+###############################################################################
+      
+      
+  ### 6.1 Nursing model parameterization 
+    ## a) Nursing zero inflated, poisson distributed response
+      nurse.zipoisson <- glmmTMB(n ~ fas.age.mon + migratn.seas + fas.am.pm +
+                                   offset(log(overlap)) + (1|hy.id),
+                                 data = fas_data,
+                                 ziformula = ~1,
+                                 family = list(family = 'poisson', 
+                                               link = 'log'))
+    # Model summary estimates
+      summary(nurse.zipoisson)
+      
+    ## b) Nursing zero inflated, negative bionomial (NB2) 
+      # distributed response
+      nurse.zinegbinom2 <- update(nurse.zipoisson, 
+                                  family = list(family = 'nbinom2',
+                                                link = 'log'))
+      
+    # Model summary estimates
+      summary(nurse.zinegbinom2)
+      
+    ## c) Nursing zero inflated, negative bionomial (NB1) 
+      # distributed response
+      nurse.zinegbinom1 <- update(nurse.zipoisson, 
+                                  family = list(family = 'nbinom1',
+                                                link = 'log'))
+      
+    # Model summary estimates
+      summary(nurse.zinegbinom1)
+      
+    ## d) Nursing poisson distributed response; NO zero inflation
+      nurse.poisson <- glmmTMB(n ~ fas.age.mon + migratn.seas + fas.am.pm +
+                                 offset(log(overlap)) + (1|hy.id),
+                               data = fas_data,
+                               ziformula = ~0,
+                               family = list(family = 'poisson', 
+                                             link = 'log'))
+      # Model summary estimates
+      summary(nurse.poisson)
+      
+    ## e) Nursing, negative bionomial (NB2); NO zero inflation 
+      # distributed response
+      nurse.negbinom2 <- update(nurse.poisson, 
+                                family = list(family = 'nbinom2',
+                                              link = 'log'))
+      
+    # Model summary estimates
+      summary(nurse.negbinom2)
+      
+    ## f) Nursing negative bionomial (NB1); NO zero inflation 
+      # distributed response
+      nurse.negbinom1 <- update(nurse.poisson, 
+                                family = list(family = 'nbinom1',
+                                              link = 'log'))
+      
+    # Model summary estimates
+      summary(nurse.negbinom1)
+      
+      
+  ### 6.2 Nursing model fit comparisons
+    ## e) Compare model fit with AICtab (from bbmle)
+      AICtab(nurse.zipoisson, nurse.zinegbinom2, nurse.zinegbinom1, 
+             nurse.poisson, nurse.negbinom2, nurse.negbinom1)
+      
+      
+  ### 6.3 Nursing BLUP extractions
+      
+    # NOTE: Use when there are repeated measuresments for a variable
+    # that is to be used as an explanatory variable in another analysis.
+    # Can control for other variables that bias estimates of explanatory
+    # variable
+      
+    # NOTE: BLUPs are conditional modes from a generalized linear model
+    # (according to Doug Bates). Here we use the glmmTMB package 
+    # to fit a zero-inflated, poisson/negative bionomial model
+    # BLUP = fixef(intrcpt) + ranef 
+      
+    # Calucate the BLUPs, individual variation in nursing between a
+    # mom and cub from the best fitting model (above)
+      
+    ## a) Generate best fit model summary 
+      ranef(nurse.zipoisson) # random effect
+      fixef(nurse.zipoisson) # fixed effect
+      coef(nurse.zipoisson) # BLUPs
+      
+    ## b) extract BLUPs from mixed model object
+      nurse.blups <- as.data.frame(ranef(nurse.zipoisson)) # extract ranef as 
+      # a dataframe, BLUPs = rand effects + intercept (from poiss/neg. binom)
+      
+    ## c) Rename variables in blups table
+      nurse.blups <- nurse.blups %>%
+        rename('hy.id' = 'grp') %>%
+        rename('n.ranef' = 'condval') %>%
+        rename('n.ranef.sd' = 'condsd') %>%
+        select(c('hy.id', 'n.ranef', 'n.ranef.sd'))
+      
+    ## d) extract fixed effect (intercept) from poisson/neg. binomial model
+      nurse.intrcpt <- (fixef(nurse.zipoisson)[[1]])[[1]] # fixed effect
+    #**** INTERPETATION ****#  
+      # Interpet as expected log count of behavior when controlling for /
+      # holding constant the effects ofcovariates (or if exponentiated 
+      # the intercept is the incident rate of the expected count 
+      # of behavior) as a proporiton of time overlap (the offset)
+      
+    ## e) extract fixed effect (intercept) from zero inflation model
+      zi.nurse.intrcpt <- (fixef(nurse.zipoisson)[[2]])[[1]] # fixed effect
+      
+    ## f) Create a new variable that is ranef plus both poisson/neg. binomial
+      # and zero inflation model intercepts. This provides estimates of 
+      # individual level variation in proportion of time spent doing a behavior
+      # vs time mom and cub overlapped (present together)
+      nurse.blups <-  nurse.blups  %>%
+        mutate(n.blups = nurse.intrcpt + n.ranef) %>%
+        mutate(n.expontd.blups = exp(n.blups))    
+      
+    #**** INTERPETATION ****#  
+      # Interpet as the conditional mode or the log counts / incident rate
+      # of expected counts as a proportion of the overlap time (offset) for
+      # each individual...while holding constant effect of other covariates
 
       
+      
 ###############################################################################
-##############                10. Export data files               ##############
+##############           7. Model 'grooming' behaviors           ##############
 ###############################################################################
       
-  ### 10.1 Export fecal corticosterone BLUPs to csv     
-      # Save and export tables as a .cvs spreadsheet and named with today's
-      # date. Files are saved in the 'output' folder in the working directory.
+  ### 7.1 Grooming model parameterization 
+    ## a) Grooming zero inflated, poisson distributed response
+      groom.zipoisson <- glmmTMB(g ~ fas.age.mon + migratn.seas + fas.am.pm +
+                                   offset(log(overlap)) + (1|hy.id),
+                                 data = fas_data,
+                                 ziformula = ~1,
+                                 family = list(family = 'poisson', 
+                                               link = 'log'))
+      # Model summary estimates
+      summary(groom.zipoisson)
       
-    ## a) Generate File Names
-      # For each table that will be saved as a .csv file, first generate a 
-      # file name to save each table
-      # here, we paste the folder path, followed by the file name 
-      csv.file.name.fecal.cort.BLUPs <- paste0(here("output", 
-                                                    "fecal_cort_BLUPs.csv")) 
+    ## b) Grooming zero inflated, negative bionomial (NB2) 
+      # distributed response
+      groom.zinegbinom2 <- update(groom.zipoisson, 
+                                  family = list(family = 'nbinom2',
+                                                link = 'log'))
       
-    ## b) Save Tables 
+      # Model summary estimates
+      summary(groom.zinegbinom2)
+      
+    ## c) Grooming zero inflated, negative bionomial (NB1) 
+      # distributed response
+      groom.zinegbinom1 <- update(groom.zipoisson, 
+                                  family = list(family = 'nbinom1',
+                                                link = 'log'))
+      
+      # Model summary estimates
+      summary(groom.zinegbinom1)
+      
+    ## d) Grooming poisson distributed response; NO zero inflation
+      groom.poisson <- glmmTMB(g ~ fas.age.mon + migratn.seas + fas.am.pm +
+                                 offset(log(overlap)) + (1|hy.id),
+                               data = fas_data,
+                               ziformula = ~0,
+                               family = list(family = 'poisson', 
+                                             link = 'log'))
+      # Model summary estimates
+      summary(groom.poisson)
+      
+    ## e) Grooming, negative bionomial (NB2); NO zero inflation 
+      # distributed response
+      groom.negbinom2 <- update(groom.poisson, 
+                                family = list(family = 'nbinom2',
+                                              link = 'log'))
+      
+      # Model summary estimates
+      summary(groom.negbinom2)
+      
+    ## f) Grooming negative bionomial (NB1); NO zero inflation 
+      # distributed response
+      groom.negbinom1 <- update(groom.poisson, 
+                                family = list(family = 'nbinom1',
+                                              link = 'log'))
+      
+      # Model summary estimates
+      summary(groom.negbinom1)
+      
+      
+  ### 7.2 Grooming model fit comparisons
+    ## e) Compare model fit with AICtab (from bbmle)
+      AICtab(groom.zipoisson, groom.zinegbinom2, groom.zinegbinom1, 
+             groom.poisson, groom.negbinom2, groom.negbinom1)
+      
+      
+  ### 7.3 Grooming BLUP extractions
+      
+      # NOTE: Use when there are repeated measuresments for a variable
+      # that is to be used as an explanatory variable in another analysis.
+      # Can control for other variables that bias estimates of explanatory
+      # variable
+      
+      # NOTE: BLUPs are conditional modes from a generalized linear model
+      # (according to Doug Bates). Here we use the glmmTMB package 
+      # to fit a zero-inflated, poisson/negative bionomial model
+      # BLUP = fixef(intrcpt) + ranef 
+      
+      # Calucate the BLUPs, individual variation in grooming between a
+      # mom and cub from the best fitting model (above)
+      
+    ## a) Generate best fit model summary 
+      ranef(groom.zinegbinom1) # random effect
+      fixef(groom.zinegbinom1) # fixed effect; coef in glmmTMB gives fixef
+      coef(groom.zinegbinom1) # BLUPs
+      
+    ## b) extract BLUPs from mixed model object
+      groom.blups <- as.data.frame(ranef(groom.zinegbinom1)) # extract ranef as 
+      # a dataframe, BLUPs = rand effects + intercept (from poiss/neg. binom)               
+      
+      
+    ## c) Rename variables in blups table
+      groom.blups <- groom.blups %>%
+        rename('hy.id' = 'grp') %>%
+        rename('g.ranef' = 'condval') %>%
+        rename('g.ranef.sd' = 'condsd') %>%
+        select(c('hy.id', 'g.ranef', 'g.ranef.sd'))
+      
+    ## d) extract fixed effect (intercept) from poisson/neg. binomial model
+      groom.intrcpt <- (fixef(groom.zinegbinom1)[[1]])[[1]] # fixed effect
+    #**** INTERPETATION ****#  
+      # Interpet as expected log count of behavior when controlling for /
+      # holding constant the effects ofcovariates (or if exponentiated 
+      # the intercept is the incident rate of the expected count 
+      # of behavior) as a proporiton of time overlap (the offset)
+      
+    ## e) extract fixed effect (intercept) from zero inflation model
+      zi.groom.intrcpt <- (fixef(groom.zinegbinom1)[[2]])[[1]] # fixed effect
+      
+    ## f) Create a new variable that is ranef plus both poisson/neg. binomial
+      # and zero inflation model intercepts. This provides estimates of 
+      # individual level variation in proportion of time spent doing a behavior
+      # vs time mom and cub overlapped (present together)
+      groom.blups <-  groom.blups  %>%
+        mutate(g.blups = groom.intrcpt + g.ranef) %>%
+        mutate(g.expontd.blups = exp(g.blups))  
+      
+    #**** INTERPETATION ****#  
+      # Interpet as the conditional mode or the log counts / incident rate
+      # of expected counts as a proportion of the overlap time (offset) for
+      # each individual...while holding constant effect of other covariates
+      
+      
+      
+###############################################################################
+##############           8. Format variables for MACUA           ##############
+###############################################################################      
+  
+  ### 8.1 Join the BLUPs for each behavior into a single data frame
+    ## a) Left join close.blups to nurse.blups  
+      fas_blups <- left_join(close.blups,
+                             nurse.blups, by = 'hy.id')
+      
+    ## b) Left join close.blups to nurse.blups    
+      fas_blups <- left_join(fas_blups,
+                             groom.blups, by = 'hy.id')
+      
+      
+  ### 8.2 Make dataframe for txt. file export to MACUA (for EWAS)
+      ## a) Manual data clean up drop animals that failed ERRBS library QAQC
+      rrbs_vars <- rrbs_vars %>%
+        filter (!grepl('tato', hy.id))
+    
+      ## b) Left join fas_blups to rrbs_vars
+      rrbs_vars <- rrbs_vars %>%
+        left_join(fas_blups, by = 'hy.id')
+    
+        
+  ### 8.3 Arrange data set by hy.id abc order
+      ## This is necessary because the order of rows matches data to a 
+      ## specific animal
+      rrbs_vars <- arrange(rrbs_vars, hy.id)
+    
+        
+  ### 8.4 Subset explanatory/predictor variables and format for use in MACAU
+    ## a) Maternal rank formatted
+     mat_rank_predictor_hy_n29 <- rrbs_vars %>%
+        mutate(intercept = 1) %>%
+        select(intercept, mom.rank) 
+    
+    ## b) Close proximity BLUPs formatted
+      close_prox_predictor_hy_n29 <- rrbs_vars %>%
+        mutate(intercept = 1) %>%
+        select(intercept, c.expontd.blups) 
+      
+    ## c) Nursing BLUPs formatted
+      nurse_predictor_hy_n29 <- rrbs_vars %>%
+        mutate(intercept = 1) %>%
+        select(intercept, n.expontd.blups) 
+      
+    ## d) Grooing BLUPs formatted
+      groom_predictor_hy_n29 <- rrbs_vars %>%
+        mutate(intercept = 1) %>%
+        select(intercept, g.expontd.blups)   
+
+            
+  ### 8.5 Subset explanatory/predictor variables and format for use in MACAU
+    ## a) Covariates (variables to control analyses)
+      mat_rank_care_covars_hy_n29 <- rrbs_vars %>%
+        select(dart.age.mon) 
+       
+      
+###############################################################################
+##############                9. Export data files               ##############
+###############################################################################
+      
+  ### 9.1 Export FAS BLUPs to csv     
+      # Save and export tables as a .cvs spreadsheet. Files are saved 
+      # in the 'output' folder in the working directory.
+      
+    ## a) Generate file name
+      # Use here, to paste the folder path, followed by the file name 
+      csv.file.name.FAS.BLUPs <- paste0(here("data", 
+                                                    "fas_blups.csv")) 
+     
+    ## b) Save table 
       # Save data frame as a .csv file (a spreadsheet/table) into the 
       # output data folder in the working directory.
-      write.csv (adult_fec_cort, file = csv.file.name.fecal.cort.BLUPs)
+      write.csv (fas_blups, file = csv.file.name.FAS.BLUPs)
       
       
+  ### 9.2 Export explanatory/predictor variables to txt     
+      # Save and export part of table as a .txt file. Files are formatted 
+      # for use in MACAU as predictor/explanatory variables
+      
+    ## a) Generate maternal rank file name
+      # Use here, to paste the folder path, followed by the file name 
+      mat.rank.pred <- paste0(here("data", "mat_rank_predictor_hy_n29")) 
+      
+    ## b) Save maternal rank file 
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(mat_rank_predictor_hy_n29, file = mat.rank.pred, 
+                  row.names = F, col.names = F)    
+      
+    ## c) Generate close proximity file name
+      # Use here, to paste the folder path, followed by the file name 
+      close.prox.pred <- paste0(here("data", "close_prox_predictor_hy_n29")) 
+      
+    ## d) Save close proximity file
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(close_prox_predictor_hy_n29, file = close.prox.pred, 
+                  row.names = F, col.names = F)    
+      
+    ## e) Generate nursing file name
+      # Use here, to paste the folder path, followed by the file name 
+      nurse.pred <- paste0(here("data", "nurse_predictor_hy_n29")) 
+      
+    ## f) Save nursing file
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(nurse_predictor_hy_n29, file = nurse.pred, 
+                  row.names = F, col.names = F)    
+      
+    ## g) Generate grooming file name
+      # Use here, to paste the folder path, followed by the file name 
+      groom.pred <- paste0(here("data", "groom_predictor_hy_n29")) 
+      
+    ## h) Save grooming file
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(groom_predictor_hy_n29, file = groom.pred, 
+                  row.names = F, col.names = F)     
       
       
+  ### 9.2 Export covariate variables to txt     
+    # Save and export part of table as a .txt file. Files are formatted 
+    # for use in MACAU as covariate variables
+      
+    ## a) Generate maternal rank/care covariate file name
+      # Use here, to paste the folder path, followed by the file name 
+      mat.rank.care.covar <- paste0(here('data', 
+                                         'mat_rank_care_covars_hy_n29')) 
+      
+    ## b) Save maternal rank file 
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(mat_rank_care_covars_hy_n29, file = mat.rank.care.covar, 
+                  row.names = F, col.names = F)  
       
       
       
