@@ -426,7 +426,7 @@
   ### 4.1 Overview
     # Generate summary / estimates for repeated measures fecal corticosterone 
     # to be used as independent variable in models.
-  
+ 
   ### 4.2 Visualize (and transform as needed) raw data        
       ## a) Histogram Outcome (fecal corticosterone)
       ggplot(data=fecal_data, aes(x=corticosterone.ng.g)) + 
@@ -438,7 +438,7 @@
         labs(title= "Histogram for fecal corticosterone") +
         theme(plot.title = element_text(hjust = 0.5)) + # center title
         labs(x="Corticosterone (ng/g)", y="Frequency") 
-   class(adult_fec_cort$cort)
+
     ## b) Natural log transformation
       fecal_data$corticosterone.ng.g.log <- log(fecal_data$corticosterone.ng.g)
       
@@ -503,7 +503,7 @@
       
     ## d) Use tibble to add row names as their own column
       blups <- rownames_to_column(blups, "id") 
-      
+  
     ## e) Rename variables in blups table
       blups <- rename(blups, 'log_cort' = '(Intercept)') 
       
@@ -555,8 +555,8 @@
       # For each table that will be saved as a .csv file, first generate a 
       # file name to save each table
       # here, we paste the folder path, followed by the file name 
-      csv.file.name.fecal.cort.BLUPs <- paste0(here("output", 
-                                                    "fecal_cort_BLUPs.csv")) 
+      csv.file.name.fecal.cort.BLUPs <- paste0(here("data", 
+                                                    "fecal_cort_blups.csv")) 
       
     ## b) Save Tables 
       # Save data frame as a .csv file (a spreadsheet/table) into the 
