@@ -308,12 +308,16 @@
       # the number of those hyenas
       length(hys)
   
-    ## c) add cub.dob and darting.date to fas_data
-      dates_df <- select(rrbs_vars, c(hy.id, darting.date, cub.dob, 
-                                      dart.age.mon)) 
+    ## c) Join variables from rrbs_vars to fas_data
+      fas_data <- fas_data  %>%
+        left_join(select(rrbs_vars, c(hy.id, darting.date, cub.dob, 
+                                      dart.age.mon)), 
+                  by = c("hy.id" = "hy.id"))
       
-      fas_data <- left_join(fas_data,
-                              dates_df, by = "hy.id")
+    ## c) Join variables from tblHyenas to fas_data
+      fas_data <- fas_data  %>%
+        left_join(select(tblHyena, c(hy.id, number.littermates, litrank)),
+                  by = c("hy.id" = "hy.id")) 
       
       
   ### 3.7 Tidy fas_data
@@ -368,8 +372,9 @@
     ## h) Re-code *nominal* factor (with ordered levels)  
       # Set levels (odering) of fas.am.pm variable and sets the reference  
       # level to 'am' 
-      fas_data <- transform( fas_data, 
-                              fas.am.pm = factor(fas.am.pm,
+      fas_data <- fas_data %>%
+        mutate_at(0 == is.na(number.littermates), 1, number.littermates)
+      fas.am.pm = factor(fas.am.pm,
                                                      levels = c("am", 
                                                                 "pm"))) 
       
@@ -381,7 +386,6 @@
           # ALL FAS ocurr before darting date (ERRBS sample) and when 
           # cub ages were less than 13 months 
       
-      
     ## j) Subset fas_data based on minimum overlap time of 5 min 
       # for FAS samples when both mom and cub present together
       fas_data <- fas_data  %>%
@@ -389,6 +393,21 @@
     #*** NOTE *** This is a data inclusion cut-off decision. 
       # ALL FAS in which there is a minimum overlap time of 5 min 
       # for FAS samples when both mom and cub present together 
+      
+    ## k) Litter size tidying
+      fas_data <- fas_data  %>%
+        replace_na(list(number.littermates = 0))
+        
+    #*** MANUAL DATA CHECK *** there is no lit size info for chco, reb, goof,
+      # or maa in tblHyena (27 feb 2019). These animals do not share a 
+      # dob with any other animals in tblHyenas, so they are manually 
+      # assigne number.litter mates == 0
+      
+    ## l) Make a new 2 level nomial variable lit.size
+      fas_data <- fas_data  %>%
+        mutate(lit.size = case_when(number.littermates == 0 ~ c("single"),
+                                    number.littermates == 1 ~ c("twin")))
+                                    
       
       
   ### 3.8 Combine repro_state w fas_data
@@ -552,7 +571,7 @@
         theme(plot.title = element_text(hjust = 0.5)) + # center title
         labs(x="Ratio (grooming : overlap", y="Frequency") 
       
-      
+  
       
 ###############################################################################
 ##############       5. Model 'close proximity' behaviors        ##############
@@ -560,7 +579,9 @@
       
   ### 5.1 Close proximity model parameterization 
     ## a) Close proximity zero inflated, poisson distributed response
-      close.zipoisson <- glmmTMB(c ~ fas.age.mon + migratn.seas + fas.am.pm +
+      close.zipoisson <- glmmTMB(c ~ fas.age.mon + fas.am.pm +  # sampling var
+                                   #migratn.seas +              # mat care var
+                                   #lit.size + parity.binary +  # mat care var
                                    offset(log(overlap)) + (1|hy.id),
                                  data = fas_data,
                                  ziformula = ~1,
@@ -588,7 +609,9 @@
       summary(close.zinegbinom1)
       
     ## d) Close proximity poisson distributed response; NO zero inflation
-      close.poisson <- glmmTMB(c ~ fas.age.mon + migratn.seas + fas.am.pm +
+      close.poisson <- glmmTMB(c ~ fas.age.mon + fas.am.pm +  # sampling var
+                                 #migratn.seas +              # mat care var
+                                 #lit.size + parity.binary +  # mat care var
                                    offset(log(overlap)) + (1|hy.id),
                                  data = fas_data,
                                  ziformula = ~0,
@@ -665,13 +688,12 @@
       zi.close.intrcpt <- (fixef(close.zinegbinom1)[[2]])[[1]] # fixed effect
       
     ## f) Create a new variable that is ranef plus both poisson/neg. binomial
-      # and zero inflation model intercepts. This provides estimates of 
-      # individual level variation in proportion of time spent doing a behavior
-      # vs time mom and cub overlapped (present together)
+      # model intercept. This provides estimates of individual level
+      # variation in proportion of time spent doing a behavior vs time mom
+      # and cub overlapped (present together)
       close.blups <-  close.blups  %>%
         mutate(c.blups = close.intrcpt + c.ranef) %>%
         mutate(c.expontd.blups = exp(c.blups))
-      
     #**** INTERPETATION ****#  
       # Interpet as the conditional mode or the log counts / incident rate
       # of expected counts as a proportion of the overlap time (offset) for
@@ -683,10 +705,11 @@
 ##############            6. Model 'nursing' behaviors           ##############
 ###############################################################################
       
-      
   ### 6.1 Nursing model parameterization 
     ## a) Nursing zero inflated, poisson distributed response
-      nurse.zipoisson <- glmmTMB(n ~ fas.age.mon + migratn.seas + fas.am.pm +
+      nurse.zipoisson <- glmmTMB(n ~ fas.age.mon + fas.am.pm +  # sampling var
+                                   #migratn.seas +              # mat care var
+                                   #lit.size + parity.binary +  # mat care var
                                    offset(log(overlap)) + (1|hy.id),
                                  data = fas_data,
                                  ziformula = ~1,
@@ -714,7 +737,9 @@
       summary(nurse.zinegbinom1)
       
     ## d) Nursing poisson distributed response; NO zero inflation
-      nurse.poisson <- glmmTMB(n ~ fas.age.mon + migratn.seas + fas.am.pm +
+      nurse.poisson <- glmmTMB(n ~ fas.age.mon + fas.am.pm +  # sampling var
+                                 #migratn.seas +              # mat care var
+                                 #lit.size + parity.binary +  # mat care var
                                  offset(log(overlap)) + (1|hy.id),
                                data = fas_data,
                                ziformula = ~0,
@@ -791,13 +816,12 @@
       zi.nurse.intrcpt <- (fixef(nurse.zipoisson)[[2]])[[1]] # fixed effect
       
     ## f) Create a new variable that is ranef plus both poisson/neg. binomial
-      # and zero inflation model intercepts. This provides estimates of 
-      # individual level variation in proportion of time spent doing a behavior
-      # vs time mom and cub overlapped (present together)
+      # model intercept. This provides estimates of individual level
+      # variation in proportion of time spent doing a behavior vs time mom
+      # and cub overlapped (present together)
       nurse.blups <-  nurse.blups  %>%
         mutate(n.blups = nurse.intrcpt + n.ranef) %>%
         mutate(n.expontd.blups = exp(n.blups))    
-      
     #**** INTERPETATION ****#  
       # Interpet as the conditional mode or the log counts / incident rate
       # of expected counts as a proportion of the overlap time (offset) for
@@ -811,7 +835,9 @@
       
   ### 7.1 Grooming model parameterization 
     ## a) Grooming zero inflated, poisson distributed response
-      groom.zipoisson <- glmmTMB(g ~ fas.age.mon + migratn.seas + fas.am.pm +
+      groom.zipoisson <- glmmTMB(g ~ fas.age.mon + fas.am.pm +  # sampling var
+                                   #migratn.seas +              # mat care var
+                                   #lit.size + parity.binary +  # mat care var
                                    offset(log(overlap)) + (1|hy.id),
                                  data = fas_data,
                                  ziformula = ~1,
@@ -839,7 +865,9 @@
       summary(groom.zinegbinom1)
       
     ## d) Grooming poisson distributed response; NO zero inflation
-      groom.poisson <- glmmTMB(g ~ fas.age.mon + migratn.seas + fas.am.pm +
+      groom.poisson <- glmmTMB(g ~ fas.age.mon + fas.am.pm +  # sampling var
+                                 #migratn.seas +              # mat care var
+                                 #lit.size + parity.binary +  # mat care var
                                  offset(log(overlap)) + (1|hy.id),
                                data = fas_data,
                                ziformula = ~0,
@@ -917,13 +945,12 @@
       zi.groom.intrcpt <- (fixef(groom.zinegbinom1)[[2]])[[1]] # fixed effect
       
     ## f) Create a new variable that is ranef plus both poisson/neg. binomial
-      # and zero inflation model intercepts. This provides estimates of 
-      # individual level variation in proportion of time spent doing a behavior
-      # vs time mom and cub overlapped (present together)
+      # model intercept. This provides estimates of individual level
+      # variation in proportion of time spent doing a behavior vs time mom
+      # and cub overlapped (present together)
       groom.blups <-  groom.blups  %>%
         mutate(g.blups = groom.intrcpt + g.ranef) %>%
         mutate(g.expontd.blups = exp(g.blups))  
-      
     #**** INTERPETATION ****#  
       # Interpet as the conditional mode or the log counts / incident rate
       # of expected counts as a proportion of the overlap time (offset) for
@@ -994,24 +1021,26 @@
 ###############################################################################
       
   ### 9.1 Export FAS BLUPs to csv     
-      # Save and export tables as a .cvs spreadsheet. Files are saved 
-      # in the 'output' folder in the working directory.
+      # Save and export tables as a .cvs spreadsheet and named with today's
+      # date. Files are saved in the 'output' folder in the working directory.
       
-    ## a) Generate file name
-      # Use here, to paste the folder path, followed by the file name 
+    ## a) Generate File Names
+      # For each table that will be saved as a .csv file, first generate a 
+      # file name to save each table
+      # here, to paste the folder path, followed by the file name 
       csv.file.name.FAS.BLUPs <- paste0(here("data", 
                                                     "fas_blups.csv")) 
      
-    ## b) Save table 
+    ## b) Save Tables 
       # Save data frame as a .csv file (a spreadsheet/table) into the 
       # output data folder in the working directory.
       write.csv (fas_blups, file = csv.file.name.FAS.BLUPs)
-      
-      
+
+
   ### 9.2 Export explanatory/predictor variables to txt     
       # Save and export part of table as a .txt file. Files are formatted 
-      # for use in MACAU as predictor/explanatory variables
-      
+      # for use in MACAU as explanatory/predictor variables
+            
     ## a) Generate maternal rank file name
       # Use here, to paste the folder path, followed by the file name 
       mat.rank.pred <- paste0(here("data", "mat_rank_predictor_hy_n29")) 
@@ -1053,7 +1082,7 @@
                   row.names = F, col.names = F)     
       
       
-  ### 9.2 Export covariate variables to txt     
+  ### 9.3 Export covariate variables to txt     
     # Save and export part of table as a .txt file. Files are formatted 
     # for use in MACAU as covariate variables
       
@@ -1067,7 +1096,7 @@
       # output data folder in the working directory.
       write.table(mat_rank_care_covars_hy_n29, file = mat.rank.care.covar, 
                   row.names = F, col.names = F)  
-      
+
       
       
       
