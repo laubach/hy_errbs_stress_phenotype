@@ -3,7 +3,7 @@
 ##############             Maternal care (FAS data)              ##############
 ##############                 By: Zach Laubach                  ##############
 ##############               created: 14 Feb 2018                ##############
-##############             last updated: 27 Feb 2019             ##############
+##############             last updated: 28 Feb 2019             ##############
 ###############################################################################
 
 
@@ -373,10 +373,8 @@
       # Set levels (odering) of fas.am.pm variable and sets the reference  
       # level to 'am' 
       fas_data <- fas_data %>%
-        mutate_at(0 == is.na(number.littermates), 1, number.littermates)
-      fas.am.pm = factor(fas.am.pm,
-                                                     levels = c("am", 
-                                                                "pm"))) 
+        transform(fas.am.pm = factor(fas.am.pm,
+                                     levels = c("am","pm"))) 
       
     ## i) Subset fas_data based on one 12 month (including mon. 12) cut-off  
       # for FAS samples collected prior to darting.data
@@ -991,31 +989,29 @@
   ### 8.4 Subset explanatory/predictor variables and format for use in MACAU
     ## a) Maternal rank formatted
      mat_rank_predictor_hy_n29 <- rrbs_vars %>%
-        mutate(intercept = 1) %>%
-        select(intercept, mom.rank) 
+        select(mom.rank) 
     
     ## b) Close proximity BLUPs formatted
       close_prox_predictor_hy_n29 <- rrbs_vars %>%
-        mutate(intercept = 1) %>%
-        select(intercept, c.expontd.blups) 
+        select(c.expontd.blups) 
       
     ## c) Nursing BLUPs formatted
       nurse_predictor_hy_n29 <- rrbs_vars %>%
-        mutate(intercept = 1) %>%
-        select(intercept, n.expontd.blups) 
+        select(n.expontd.blups) 
       
     ## d) Grooing BLUPs formatted
       groom_predictor_hy_n29 <- rrbs_vars %>%
-        mutate(intercept = 1) %>%
-        select(intercept, g.expontd.blups)   
+        select(g.expontd.blups)   
 
             
   ### 8.5 Subset explanatory/predictor variables and format for use in MACAU
     ## a) Covariates (variables to control analyses)
       mat_rank_care_covars_hy_n29 <- rrbs_vars %>%
-        select(dart.age.mon) 
+        mutate(intercept = 1) %>%
+        select(intercept, dart.age.mon) 
        
-      
+ 
+           
 ###############################################################################
 ##############                9. Export data files               ##############
 ###############################################################################
@@ -1043,7 +1039,8 @@
             
     ## a) Generate maternal rank file name
       # Use here, to paste the folder path, followed by the file name 
-      mat.rank.pred <- paste0(here("data", "mat_rank_predictor_hy_n29")) 
+      mat.rank.pred <- paste0(here("data", 
+                                   "mat_rank_predictor_hy_n29.txt")) 
       
     ## b) Save maternal rank file 
       # Save part of dataframe as a .txt file into the 
@@ -1053,7 +1050,8 @@
       
     ## c) Generate close proximity file name
       # Use here, to paste the folder path, followed by the file name 
-      close.prox.pred <- paste0(here("data", "close_prox_predictor_hy_n29")) 
+      close.prox.pred <- paste0(here("data", 
+                                     "close_prox_predictor_hy_n29.txt")) 
       
     ## d) Save close proximity file
       # Save part of dataframe as a .txt file into the 
@@ -1063,7 +1061,8 @@
       
     ## e) Generate nursing file name
       # Use here, to paste the folder path, followed by the file name 
-      nurse.pred <- paste0(here("data", "nurse_predictor_hy_n29")) 
+      nurse.pred <- paste0(here("data", 
+                                "nurse_predictor_hy_n29.txt")) 
       
     ## f) Save nursing file
       # Save part of dataframe as a .txt file into the 
@@ -1073,7 +1072,7 @@
       
     ## g) Generate grooming file name
       # Use here, to paste the folder path, followed by the file name 
-      groom.pred <- paste0(here("data", "groom_predictor_hy_n29")) 
+      groom.pred <- paste0(here("data", "groom_predictor_hy_n29.txt")) 
       
     ## h) Save grooming file
       # Save part of dataframe as a .txt file into the 
@@ -1089,7 +1088,7 @@
     ## a) Generate maternal rank/care covariate file name
       # Use here, to paste the folder path, followed by the file name 
       mat.rank.care.covar <- paste0(here('data', 
-                                         'mat_rank_care_covars_hy_n29')) 
+                                         'mat_rank_care_covars_hy_n29.txt')) 
       
     ## b) Save maternal rank file 
       # Save part of dataframe as a .txt file into the 
