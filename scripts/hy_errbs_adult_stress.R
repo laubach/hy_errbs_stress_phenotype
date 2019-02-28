@@ -3,7 +3,7 @@
 ##############               Adult stress phenotype              ##############
 ##############                 By: Zach Laubach                  ##############
 ##############               created: 20 Nov 2018                ##############
-##############             last updated: 8 Feb 2019              ##############
+##############             last updated: 28 Feb 2019             ##############
 ###############################################################################
 
 
@@ -15,8 +15,10 @@
     # 1: Configure workspace
     # 2: Import data
     # 3: Data management
-    # 4: Model fecal corticosterone 
-    # 5: Export data files
+    # 4: Univariate analyses
+    # 5: Model fecal corticosterone
+    # 6: Format variables for MACUA 
+    # 7: Export data files
 
 
 
@@ -420,7 +422,7 @@
       
 
 ###############################################################################
-##############           4. Model fecal corticosterone           ##############
+##############              4. Univariate analyses               ##############
 ###############################################################################      
       
   ### 4.1 Overview
@@ -476,7 +478,13 @@
                                               na.rm = T), 2))
   
       
-  ### 4.4 BLUPs from mixed model linear regression
+      
+###############################################################################
+##############           5. Model fecal corticosterone           ##############
+###############################################################################      
+      
+      
+  ### 5.1 BLUPs from mixed model linear regression
     
     # NOTE: Use when there are repeated measuresments for a variable
        # that is to be used as an explanatory variable in another analysis.
@@ -502,25 +510,25 @@
                                        # BLUPs = rand ef. + fix ef. (intercept)
       
     ## d) Use tibble to add row names as their own column
-      blups <- rownames_to_column(blups, "id") 
+      blups <- rownames_to_column(blups, "hy.id") 
   
     ## e) Rename variables in blups table
       blups <- rename(blups, 'log_cort' = '(Intercept)') 
       
     ## f) Create a new dataframe that includes hyean id, the log cort BLUPs,
       # and the exponeniated (biological scale) cort BLUPs
-      adult_fec_cort <- as.tibble(cbind(id = blups$id,
+      fec_cort_blups <- as.tibble(cbind(hy.id = blups$hy.id,
                               log.cort = blups$log_cort, 
                               cort = exp(blups$log_cort)), round = 4)
       
     ## g) Coerce from character to numeric class
-      adult_fec_cort$log.cort <- as.numeric(adult_fec_cort$log.cort)
-      adult_fec_cort$cort <- as.numeric(adult_fec_cort$cort)
+      fec_cort_blups$log.cort <- as.numeric(fec_cort_blups$log.cort)
+      fec_cort_blups$cort <- as.numeric(fec_cort_blups$cort)
    
       
-  ### 4.5 Graph adult fecal cort conditional averages (BLUPs)
+  ### 5.2 Graph adult fecal cort conditional averages (BLUPs)
       ## a) Histogram Outcome (fecal corticosterone BLUPs)  
-      ggplot(data=adult_fec_cort, aes(x=cort)) + 
+      ggplot(data=fec_cort_blups, aes(x=cort)) + 
         geom_histogram(aes(y = ..count..),
                        breaks=seq(20, 100, by = 7), 
                        col="black",
@@ -531,7 +539,7 @@
         labs(x="Corticosterone BLUPs (ng/g)", y="Frequency") 
       
       ## b) Histogram Outcome (log fecal corticosterone)  
-      ggplot(data=adult_fec_cort, aes(x=log.cort)) + 
+      ggplot(data=fec_cort_blups, aes(x=log.cort)) + 
         geom_histogram(aes(y = ..count..),
                        breaks=seq(2.5, 5, by = 0.15), 
                        col="black",
@@ -542,36 +550,104 @@
         labs(x="Log Corticosterone BLUPs (ng/g)", y="Frequency") 
       
 
-      
+
 ###############################################################################
-##############                5. Export data files               ##############
+##############           6. Format variables for MACUA           ##############
+###############################################################################      
+      
+  ### 6.1 Make dataframe for txt. file export to MACUA (for EWAS)
+    ## a) Manual data clean up drop animals that failed ERRBS library QAQC
+      rrbs_vars <- rrbs_vars %>%
+        filter (!grepl('tato', hy.id))
+      
+      ## b) Left join fec_cort_blups to rrbs_vars
+      rrbs_vars <- rrbs_vars %>%
+        left_join(fec_cort_blups, by = 'hy.id')
+      
+      
+  ### 6.2 Arrange data set by hy.id abc order
+      ## This is necessary because the order of rows matches data to a 
+      ## specific animal
+      rrbs_vars <- arrange(rrbs_vars, hy.id)
+      
+      
+  ### 6.3 Subset explanatory/predictor variables and format for use in MACAU
+    ## a) Fecal corticosterone formatted
+      cort_predictor_hy_n29 <- rrbs_vars %>%
+        mutate(intercept = 1) %>%
+        select(intercept, cort) 
+      
+    ## b) Nat. log fecal corticosterone formatted
+      log_cort_predictor_hy_n29 <- rrbs_vars %>%
+        mutate(intercept = 1) %>%
+        select(intercept, log.cort) 
+      
+
+  ### 6.4 Subset explanatory/predictor variables and format for use in MACAU
+    ## a) Covariates (variables to control analyses)
+      fec_cort_covars_hy_n29 <- rrbs_vars %>%
+        select(dart.age.mon) 
+
+###############################################################################
+##############                7. Export data files               ##############
 ###############################################################################
       
-  ### 10.1 Export fecal corticosterone BLUPs to csv     
+  ### 7.1 Export FAS BLUPs to csv     
       # Save and export tables as a .cvs spreadsheet and named with today's
       # date. Files are saved in the 'output' folder in the working directory.
       
     ## a) Generate File Names
       # For each table that will be saved as a .csv file, first generate a 
       # file name to save each table
-      # here, we paste the folder path, followed by the file name 
-      csv.file.name.fecal.cort.BLUPs <- paste0(here("data", 
-                                                    "fecal_cort_blups.csv")) 
+      # here, to paste the folder path, followed by the file name 
+      csv.file.name.cort.BLUPs <- paste0(here("data", 
+                                             "fecal_cort_blups.csv")) 
       
     ## b) Save Tables 
       # Save data frame as a .csv file (a spreadsheet/table) into the 
       # output data folder in the working directory.
-      write.csv (adult_fec_cort, file = csv.file.name.fecal.cort.BLUPs)
+      write.csv (fec_cort_blups, file = csv.file.name.cort.BLUPs)
       
       
+  ### 7.2 Export explanatory/predictor variables to txt     
+      # Save and export part of table as a .txt file. Files are formatted 
+      # for use in MACAU as explanatory/predictor variables
+      
+    ## a) Generate fecal cort file name
+      # Use here, to paste the folder path, followed by the file name 
+      fec.cort.pred <- paste0(here("data", "cort_predictor_hy_n29.txt")) 
+      
+    ## b) Save fecal corticosterone file 
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(cort_predictor_hy_n29, file = fec.cort.pred, 
+                  row.names = F, col.names = F)    
+      
+    ## c) Generate log fecal corticosterone file name
+      # Use here, to paste the folder path, followed by the file name 
+      log.cort.pred <- paste0(here("data", "log_cort_predictor_hy_n29.txt")) 
+      
+      ## d) Save log fecal corticosterone file
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(log_cort_predictor_hy_n29, file = log.cort.pred, 
+                  row.names = F, col.names = F)    
       
       
+  ### 7.3 Export covariate variables to txt     
+      # Save and export part of table as a .txt file. Files are formatted 
+      # for use in MACAU as covariate variables
       
+    ## a) Generate fecal corticosterone rank/care covariate file name
+      # Use here, to paste the folder path, followed by the file name 
+      fec.cort.covar <- paste0(here('data', 
+                                         'fec_cort_covars_hy_n29.txt')) 
       
+    ## b) Save maternal rank file 
+      # Save part of dataframe as a .txt file into the 
+      # output data folder in the working directory.
+      write.table(fec_cort_covars_hy_n29, file = fec.cort.covar, 
+                  row.names = F, col.names = F)  
       
-      
-      
-      
-      
-      
+
       
