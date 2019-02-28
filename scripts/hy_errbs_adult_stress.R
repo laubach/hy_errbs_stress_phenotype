@@ -574,19 +574,18 @@
   ### 6.3 Subset explanatory/predictor variables and format for use in MACAU
     ## a) Fecal corticosterone formatted
       cort_predictor_hy_n29 <- rrbs_vars %>%
-        mutate(intercept = 1) %>%
-        select(intercept, cort) 
+        select(cort) 
       
     ## b) Nat. log fecal corticosterone formatted
       log_cort_predictor_hy_n29 <- rrbs_vars %>%
-        mutate(intercept = 1) %>%
-        select(intercept, log.cort) 
+        select(log.cort) 
       
 
   ### 6.4 Subset explanatory/predictor variables and format for use in MACAU
     ## a) Covariates (variables to control analyses)
       fec_cort_covars_hy_n29 <- rrbs_vars %>%
-        select(dart.age.mon) 
+        mutate(intercept = 1) %>%
+        select(intercept, dart.age.mon) 
 
 ###############################################################################
 ##############                7. Export data files               ##############
