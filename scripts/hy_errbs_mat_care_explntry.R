@@ -460,12 +460,11 @@
     ## a) Change state to character
       fas_data$state <- as.character(fas_data$state)
       
-    ## b) Subset data to only include moms and cubs when lactating
+    ## b) Subset data to only include moms and cubs when possibly lactating
       fas_data <- fas_data  %>%
-        filter(state == "l")
-      
-    #*** NOTE *** This is a data inclusion cut-off decision. 
-      # ALL FAS in which mom's are lactating 
+        filter(!grepl('o', state))
+      #*** NOTE *** This is a data inclusion cut-off decision. 
+      # ALL FAS in which mom's are not 'other' (no chance of lactating)
       
     ## c) Re-code *nominal* factor (with ordered levels)  
       fas_data <- transform(fas_data, 
