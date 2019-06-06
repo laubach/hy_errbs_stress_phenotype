@@ -15,11 +15,12 @@
     # 2: Import data
     # 3: Tidy individual tables
     # 4: Join tables and re-tidy fas data
-    # 5: Model 'close proximity' behaviors
-    # 6: Model 'nursing' behaviors
-    # 7: Model 'grooming' behaviors
-    # 8: Format variables for downstream analyses 
-    # 9: Export data files 
+    # 5: Univariate analyses
+    # 6: Model 'close proximity' behaviors
+    # 7: Model 'nursing' behaviors
+    # 8: Model 'grooming' behaviors
+    # 9: Format variables for downstream analyses 
+    # 10: Export data files 
 
 
 
@@ -33,7 +34,7 @@
 
     ## b) prevent R from automatically reading charater strins as factors
       options(stringsAsFactors = FALSE)
-  update_tables
+  
   ### 1.2 Install and load Mara Hyena Project packages 
     ## a) Load the Mara Hyena Project data files from github
       # Check for devtools and install if not already installed
@@ -115,7 +116,7 @@
     # Developed in:   
     # R version 3.5.2 (2018-12-20)
     # Platform: x86_64-apple-darwin15.6.0 (64-bit)
-    # Running under: macOS  Mojave 10.14.3
+    # Running under: macOS  Mojave 10.14.5
     
   
   ### 1.5 Set working directory 
@@ -716,10 +717,10 @@
   
       
 ###############################################################################
-##############       5. Model 'close proximity' behaviors        ##############
+##############       6. Model 'close proximity' behaviors        ##############
 ###############################################################################  
       
-  ### 5.1 Close proximity model parameterization 
+  ### 6.1 Close proximity model parameterization 
     ## a) Close proximity zero inflated, poisson distributed response
       close.zipoisson <- glmmTMB(c ~ fas.age.mon + fas.am.pm +  # sampling var
                                    migratn.seas.fas +           # sampling var
@@ -795,13 +796,13 @@
       summary(close.negbinom1)
       
       
-  ### 5.2 Close proximity model fit comparisons
+  ### 6.2 Close proximity model fit comparisons
     ## e) Compare model fit with AICtab (from bbmle)
       AICtab(close.zipoisson, close.zinegbinom2, close.zinegbinom1, 
              close.poisson, close.negbinom2, close.negbinom1)
     
       
-  ### 5.3 Close proximity BLUP extractions
+  ### 6.3 Close proximity BLUP extractions
 
     # NOTE: Use when there are repeated measuresments for a variable
        # that is to be used as an explanatory variable in another analysis.
@@ -858,10 +859,10 @@
       
       
 ###############################################################################
-##############            6. Model 'nursing' behaviors           ##############
+##############            7. Model 'nursing' behaviors           ##############
 ###############################################################################
       
-  ### 6.1 Nursing model parameterization 
+  ### 7.1 Nursing model parameterization 
     ## a) Nursing zero inflated, poisson distributed response
       nurse.zipoisson <- glmmTMB(n ~ fas.age.mon + fas.am.pm +  # sampling var
                                    migratn.seas.fas +           # sampling var
@@ -927,13 +928,13 @@
       summary(nurse.negbinom1)
       
       
-  ### 6.2 Nursing model fit comparisons
+  ### 7.2 Nursing model fit comparisons
     ## e) Compare model fit with AICtab (from bbmle)
       AICtab(nurse.zipoisson, nurse.zinegbinom2, nurse.zinegbinom1, 
              nurse.poisson, nurse.negbinom2, nurse.negbinom1)
       
       
-  ### 6.3 Nursing BLUP extractions
+  ### 7.3 Nursing BLUP extractions
       
     # NOTE: Use when there are repeated measuresments for a variable
     # that is to be used as an explanatory variable in another analysis.
@@ -990,10 +991,10 @@
       
       
 ###############################################################################
-##############           7. Model 'grooming' behaviors           ##############
+##############           8. Model 'grooming' behaviors           ##############
 ###############################################################################
       
-  ### 7.1 Grooming model parameterization 
+  ### 8.1 Grooming model parameterization 
     ## a) Grooming zero inflated, poisson distributed response
       groom.zipoisson <- glmmTMB(g ~ fas.age.mon + fas.am.pm +  # sampling var
                                    migratn.seas.fas +           # sampling var
@@ -1059,13 +1060,13 @@
       summary(groom.negbinom1)
       
       
-  ### 7.2 Grooming model fit comparisons
+  ### 8.2 Grooming model fit comparisons
     ## e) Compare model fit with AICtab (from bbmle)
       AICtab(groom.zipoisson, groom.zinegbinom2, groom.zinegbinom1, 
              groom.poisson, groom.negbinom2, groom.negbinom1)
       
       
-  ### 7.3 Grooming BLUP extractions
+  ### 8.3 Grooming BLUP extractions
       
       # NOTE: Use when there are repeated measuresments for a variable
       # that is to be used as an explanatory variable in another analysis.
@@ -1123,10 +1124,10 @@
       
       
 ###############################################################################
-##############    8. Format variables for downstream analyses    ##############
+##############    9. Format variables for downstream analyses    ##############
 ###############################################################################      
   
-  ### 8.1 Join the BLUPs for each behavior into a single data frame
+  ### 9.1 Join the BLUPs for each behavior into a single data frame
     ## a) Left join close.blups to nurse.blups  
       mat_care_fas_blups <- left_join(close.blups,
                              nurse.blups, by = 'hy.id')
@@ -1140,7 +1141,7 @@
                                       mat_care_fas_summry, by = 'hy.id')
       
       
-  ### 8.2 Left join mat_care_fas by rrbs_vars
+  ### 9.2 Left join mat_care_fas by rrbs_vars
     ## a) Select variabels of importance from rrbs data
       rrbs_vars <- rrbs_vars %>%
         select(c(hy.id, sample.id, darting.date, 
@@ -1152,7 +1153,7 @@
         left_join(mat_care_fas_blups, by = c("hy.id" = "hy.id"))
       
       
-  ### 8.3 Tidy maternal care
+  ### 9.3 Tidy maternal care
     ## a) Create a variable, 'dart.from.fas,' which indicates whether fas data 
       # were collected before vs after the darting date
       mat_care_rrbs <- mat_care_rrbs  %>%
@@ -1170,7 +1171,7 @@
                                      mat_care_rrbs$first.fas.date)) 
       
 
-  ### 8.4 Make dataframes for txt. file export to MACUA (for EWAS)
+  ### 9.4 Make dataframes for txt. file export to MACUA (for EWAS)
     ## a) Manual data clean up drop animals that failed ERRBS library QAQC
       mat_care_rrbs <- mat_care_rrbs %>%
         filter (!grepl('tato', hy.id))
@@ -1197,7 +1198,7 @@
         select(g.expontd.blups)   
       
       
-  ### 8.5 Subset explanatory/predictor variables and format for use in MACAU
+  ### 9.5 Subset explanatory/predictor variables and format for use in MACAU
     ## a) Covariates (variables to control analyses)
       mat_rank_care_covars_hy_n29 <- mat_care_rrbs %>%
         mutate(intercept = 1) %>%
@@ -1215,10 +1216,10 @@
       
       
 ###############################################################################
-##############                9. Export data files               ##############
+##############                10. Export data files               ##############
 ###############################################################################
       
-  ### 9.1 Export FAS BLUPs to csv     
+  ### 10.1 Export FAS BLUPs to csv     
       # Save and export tables as a .cvs spreadsheet and named with today's
       # date. Files are saved in the 'output' folder in the working directory.
       
@@ -1245,7 +1246,7 @@
       write.csv (mat_care_rrbs, file = csv.file.name.mat.car.rrbs)
       
 
-  ### 9.2 Export explanatory/predictor variables to txt     
+  ### 10.2 Export explanatory/predictor variables to txt     
       # Save and export part of table as a .txt file. Files are formatted 
       # for use in MACAU as explanatory/predictor variables
       
@@ -1293,7 +1294,7 @@
                   row.names = F, col.names = F)     
       
       
-  ### 9.3 Export covariate variables to txt     
+  ### 10.3 Export covariate variables to txt     
       # Save and export part of table as a .txt file. Files are formatted 
       # for use in MACAU as covariate variables
       
