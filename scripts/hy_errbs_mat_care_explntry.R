@@ -33,21 +33,14 @@
 
     ## b) prevent R from automatically reading charater strins as factors
       options(stringsAsFactors = FALSE)
-  
+  update_tables
   ### 1.2 Install and load Mara Hyena Project packages 
     ## a) Load the Mara Hyena Project data files from github
       # Check for devtools and install if not already installed
         if(!'devtools' %in% row.names(installed.packages())){
           install.packages('devtools')
         }
-<<<<<<< HEAD
-    
-=======
-    ## b) Use devtools to install hyeanadata package from the MaraHyenaProject
-      # on github
-        devtools::install_github('MaraHyenaProject/hyenadata',
-                      auth_token = "e31091e1f6277964e3a52cf3e62ffdc59ea1cadc")
->>>>>>> 796791a53b615053d66b7df5d17dee526023e47c
+
       # load hyenadata package
         library('hyenadata')
 
