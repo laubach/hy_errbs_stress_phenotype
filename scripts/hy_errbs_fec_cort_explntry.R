@@ -3,7 +3,7 @@
 ##############               Adult stress phenotype              ##############
 ##############                 By: Zach Laubach                  ##############
 ##############               created: 20 Nov 2018                ##############
-##############             last updated: 28 Feb 2019             ##############
+##############             last updated: 6 June 2019             ##############
 ###############################################################################
 
 
@@ -54,14 +54,6 @@
         }
       # load lubridate packages
         library ('lubridate') 
-        
-      # NOTE: used to make joins based on conditional statements
-      # Check for fuzzyjoin and install if not already installed
-#        if (!'fuzzyjoin' %in% installed.packages()[,1]){
-#          install.packages ('fuzzyjoin')
-#        }
-      # load fuzzyjoin packages
-#        library ('fuzzyjoin')
         
       # Check for here and install if not already installed
         if (!'here' %in% installed.packages()[,1]){
@@ -133,8 +125,7 @@
 ##############                  2. Import data                   ##############
 ###############################################################################    
       
-  ### 2.1 Import data files (with readr)
-      
+  ### 2.1 Import RRBS data files (with readr)
     ## a) Import data from copy of sample seleciton file, which includes list 
       # of hyenas and variables
       rrbs_vars <- read_csv(paste(rrbs_vars_data_path,
@@ -143,13 +134,13 @@
     ## b) check that all variables are of appropriate class    
       sapply(rrbs_vars, class)
       
-    ## c) Import fecal horomens data files, including fecal repository 
-      fecal_horm <- read_csv(paste(rrbs_vars_data_path,
-                                  "tblFecalHormones.csv", sep = ''))
-    ## d) Fecal repository
-      fecal_repos <- read_csv(paste(rrbs_vars_data_path,
-                                    "tblFecalRepository.csv", sep = ''))
-    ## e) tblReprostats
+      
+  ### 2.2 Import Access Fisi data files
+    ## a) Import Access data backend from Mara Hyena Project data package
+      # Use hyenadata package 'load_all_tables' function to load all tables
+      hyenadata::load_all_tables()
+      
+    ## b) Import working version of tblReprostats
       repro_state <- read_csv(paste(general_data_path,
                                     "reprostates_EDS.csv", sep = ''))
       
@@ -193,9 +184,9 @@
       rrbs_vars$hy.id <- as.character(rrbs_vars$hy.id)
       
       
-  ### 3.2 Tidy fecal_horm
-    ## a) view the variable classes to determine which need to be modified
-      spec(fecal_horm)
+  ### 3.2 Tidy tblFecalHormones
+    ## a) rename data frame
+      fecal_horm <- tblFecalHormones
       
     ## b) Convert all text to lower case
       fecal_horm <- AllCharactersToLower(fecal_horm)
@@ -203,27 +194,38 @@
     ## c) Format variable names (lowercase and separated by '.')
       fecal_horm <- FormatVarNames(fecal_horm)
       
-  
+    ## d) Convert hormone concentrations to numeric
+      # make list of variable namges that contain 'ng.g'
+      horm_columns <- fecal_horm %>%
+        select(contains('ng.g')) %>%
+        colnames()
+      # convert variables (from horm_columns list) to character first 
+      fecal_horm <- fecal_horm %>%
+        mutate_at(horm_columns, funs(as.character)) 
+      
+      # convert variables (from horm_columns list) to numeric 
+      fecal_horm <- fecal_horm %>%
+        mutate_at(horm_columns, funs(as.numeric))
+      
+      
   ### 3.3 Tidy fecal_repos
-    ## a) view the variable classes to determine which need to be modified
-      spec(fecal_repos)
-    
+    ## a) rename data frame
+      fecal_repos <- tblFecalRepository
+      
     ## b) Convert all text to lower case
       fecal_repos <- AllCharactersToLower(fecal_repos)
-    
+      
     ## c) Format variable names (lowercase and separated by '.')
       fecal_repos <- FormatVarNames(fecal_repos)
-    
-    ## d) Convert dates stored as character (e.g. 8/3/05) to formatted dates
-      fecal_repos$poop.date <- as.Date(fecal_repos$poop.date, 
-                                        format = "%m/%d/%y")
-    
-    ## e) rename variables
+      
+    ## d) Rename hyena.id as hy.id
       fecal_repos <- fecal_repos %>%
         rename('hy.id' = 'hyena.id')
-    
-    ## f) convert hy.id to character class  
-      fecal_repos$hy.id <- as.character(fecal_repos$hy.id)
+      
+      
+      
+      
+      
       
  
   ### 3.4 Join Data sets
