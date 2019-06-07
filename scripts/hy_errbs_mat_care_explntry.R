@@ -45,7 +45,7 @@
       # load hyenadata package
         library('hyenadata')
 
-  ### 1.2 Install and load packages CRAN packages  
+  ### 1.3 Install and load packages CRAN packages  
     ## a) Data Manipulation and Descriptive Stats Packages
       # Check for tidyverse and install if not already installed
         if (!'tidyverse' %in% installed.packages()[,1]){
@@ -1220,8 +1220,8 @@
 ###############################################################################
       
   ### 10.1 Export FAS BLUPs to csv     
-      # Save and export tables as a .cvs spreadsheet and named with today's
-      # date. Files are saved in the 'output' folder in the working directory.
+      # Save and export tables as a .cvs spreadsheet. 
+      # Files are saved in the 'output' folder in the working directory.
       
     ## a) Generate file name for mat_car_fas
       # this the full fas data set with repeated fas samples
